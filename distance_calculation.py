@@ -4,7 +4,7 @@ import time
 import math
 
 # CAMERA PARAMETERS
-FOCAL_LENGTH = 1000.0 #mm
+FOCAL_LENGTH = 975.0 #mm
 HFOVANGLE = 71.2 #degrees
 VFOVANGLE = 40.5 #degrees
 VFOVANGLEMID = 15.75 #degrees
@@ -32,9 +32,12 @@ class Ball:
 possibilities = ["sports ball", "donut", "orange"]
 ball_data = []
 
-# Returns distance in a straight line (not accounting for any angle) to the object. Not super useful
+# Returns distance in a straight line (not accounting for any angle) to the object.
 def getLineDistance(known_width, focal_length, perceived_width):
     return (known_width * focal_length) / perceived_width
+
+def getActualLine(dist, vangle):
+    return (dist*(math.cos(math.radians(abs(vangle)))))
 
 # Center of x axis (assumes it just splits x axis in two)
 def get_mid_x():
@@ -81,10 +84,32 @@ def lawOfCosinesAngle(side1, side2, side3):
 
 # Returns gap in Z axis between 2 balls
 def getZGap(ball1, ball2):
-    angle = abs(ball1.vangle-ball2.vangle)
-    x = ((min(ball1.vertical_distance,ball2.vertical_distance))*(math.sin(math.radians(angle))))
+    l1 = (ball1.vertical_distance)*(math.sin(math.radians(ball1.vangle)))
+    l2 = (ball2.vertical_distance)*(math.sin(math.radians(ball2.vangle)))
+    if (ball1.vangle*ball2.vangle > 0): #same sign
+        x = abs(l1-l2)
+    else:
+        x = abs(l1) + abs(l2)
     if ball1.y < ball2.y:
         return x*-1
+    return x
+
+# Returns gap in X axis between 2 balls
+def getXGap(ball1, ball2):
+    l1 = (ball1.horizontal_distance)*(math.sin(math.radians(ball1.hangle)))
+    l2 = (ball2.horizontal_distance)*(math.sin(math.radians(ball2.hangle)))
+    if (ball1.hangle*ball2.hangle > 0): #same sign
+        x = abs(l1-l2)
+    else:
+        x = abs(l1) + abs(l2)
+    if ball1.x > ball2.x:
+        return x*-1
+    return x
+
+def getYGap(ball1, ball2):
+    x = abs(ball1.line_distance - ball2.line_distance)
+    if (ball1.diameter > ball2.diameter):
+        return  x*-1
     return x
 
 # Returns gap in X and Y axis between 2 balls. Refer to getXandYGap.jpg on the method
@@ -193,6 +218,7 @@ while True:
         cv2.putText(image, f"Horizontal Distance: {horizontal_distance:.2f} in", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"Direct Distance: {direct_distance:.2f} in", (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"(X, Y): {center_x, center_y} in", (10, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        cv2.putText(image, f"Actual Distance: {getActualLine(line_distance, vangle):.2f} in", (10, 180), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
     cv2.imshow("Detected Object", image)
 
@@ -209,6 +235,10 @@ while True:
             print("\n\nX Gap: ", xygap[0])
             print("Y Gap: ", xygap[1])
             print("Z Gap: ", getZGap(ball_data[0], ball_data[1]))
+            print(getXGap(ball_data[0], ball_data[1]))
+            print(getYGap(ball_data[0], ball_data[1]))
+            print(getActualLine(line_distance, vangle))
+            ball_data = []
 
     if key == ord('q'):
         break
