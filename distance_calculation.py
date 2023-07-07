@@ -3,6 +3,17 @@ import numpy as np
 import time
 import math
 
+# CAMERA PARAMETERS
+FOCAL_LENGTH = 1000.0 #mm
+HFOVANGLE = 71.2 #degrees
+VFOVANGLE = 40.5 #degrees
+VFOVANGLEMID = 15.75 #degrees
+RESOLUTION_X = 1280 #px
+RESOLUTION_Y = 720 #px
+
+# OBJECT PARAMETERS
+KNOWN_WIDTH = 40.00 #mm
+
 class Ball:
     def __init__(self, center_x, center_y, diameter, hangle, vangle, line_distance, vertical_distance, horizontal_distance, direct_distance):
         self.x = center_x
@@ -19,17 +30,7 @@ class Ball:
         return f"Ball Data:\nx: {self.x},\ny: {self.y},\ndiameter: {self.diameter},\nhangle: {self.hangle},\nvangle: {self.vangle},\nline_distance: {self.line_distance},\nvertical_distance: {self.vertical_distance},\nhorizontal_distance: {self.horizontal_distance},\ndirect_distance: {self.direct_distance}\n"
 
 possibilities = ["sports ball", "donut", "orange"]
-
-# CAMERA PARAMETERS
-FOCAL_LENGTH = 1000.0 #mm
-HFOVANGLE = 71.2 #degrees
-VFOVANGLE = 40.5 #degrees
-VFOVANGLEMID = 15.75 #degrees
-RESOLUTION_X = 1280 #px
-RESOLUTION_Y = 720 #px
-
-# OBJECT PARAMETERS
-KNOWN_WIDTH = 40.00 #mm
+ball_data = []
 
 # Returns distance in a straight line (not accounting for any angle) to the object. Not super useful
 def getLineDistance(known_width, focal_length, perceived_width):
@@ -71,16 +72,13 @@ def getHorizontalDistance(hangle, dist):
 def getVerticalDistance(vangle, dist):
     return (dist/(math.cos(math.radians(vangle))))
 
+def lawOfCosines3rdSide(side1, side2, angle):    
+    return (math.sqrt(side1**2 + side2**2 - 2*side1*side2*math.cos(math.radians(angle))))
 
-# def lawOfCosines3rdSide(side1, side2, angle):
-#     C = math.radians(C)
-    
-#     # Calculate the third side using the law of cosines
-#     c = math.sqrt(a**2 + b**2 - 2*a*b*math.cos(C))
-    
-#     return c
+# Angle opposite to side3
+def lawOfCosinesAngle(side1, side2, side3):
+    return (math.acos((side1**2 + side2**2 - side3**2) / (2 * side1 * side2)) * (180 / math.pi))
 
-ball_data = []
 # Returns gap in Z axis between 2 balls
 def getZGap(ball1, ball2):
     angle = abs(ball1.vangle-ball2.vangle)
@@ -88,6 +86,37 @@ def getZGap(ball1, ball2):
     if ball1.y < ball2.y:
         return x*-1
     return x
+
+# Returns gap in X and Y axis between 2 balls. Refer to getXandYGap.jpg on the method
+def getXandYGap(ball1, ball2):
+    # smallerside = 0
+    if (ball1.horizontal_distance < ball2.horizontal_distance):
+        smallerside = ball1.horizontal_distance
+        smallersideangle1 = abs(ball1.hangle)
+        longerside = ball2.horizontal_distance
+        longersideangle1 = abs(ball2.hangle)
+    else:
+        smallerside = ball2.horizontal_distance
+        smallersideangle1 = abs(ball2.hangle)
+        longerside = ball1.horizontal_distance
+        longersideangle1 = abs(ball1.hangle)
+    inner_angle = abs(ball1.hangle) + abs(ball2.hangle)
+    thirdside = lawOfCosines3rdSide(smallerside, longerside, inner_angle)
+    smallersideangle2 = lawOfCosinesAngle(smallerside, thirdside, longerside)
+    longersideangle2 = lawOfCosinesAngle(longerside, thirdside, smallerside)
+    # print(f"""\n\n\nSmaller side:{smallerside}\nsmaller side angle1:{smallersideangle1}\nthird side:{thirdside}\nlonger side:{longerside}\n
+    # longer side angle1:{longersideangle1}\n, innerangle: {inner_angle}\nsmallersideangle2: {smallersideangle2}\nlongersideangle2: {longersideangle2}""")
+    smallersideangle3 = 180 - smallersideangle1 - smallersideangle2
+    longersideangle3 = 90 - longersideangle1 - longersideangle2
+    xgap = thirdside*(math.sin(math.radians(smallersideangle3)))
+    ygap = thirdside*(math.cos(math.radians(smallersideangle3)))
+    # print(f"\n\nsmaller side angle: {smallersideangle3}\nlonger side angle: {longersideangle3}\n xgap: {xgap}\nygap: {ygap}\n\n\n")
+    # print(smallersideangle3, longersideangle3, thirdside)
+    if (ball1.x > ball2.x):
+        xgap *= -1
+    if (ball1.diameter > ball2.diameter):
+        ygap *= -1
+    return(xgap,ygap)
 
 net = cv2.dnn.readNet("yolov3.weights", "yolov3.cfg")
 
@@ -163,6 +192,7 @@ while True:
         cv2.putText(image, f"Vertical Distance: {vertical_distance:.2f} in", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"Horizontal Distance: {horizontal_distance:.2f} in", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
         cv2.putText(image, f"Direct Distance: {direct_distance:.2f} in", (10, 140), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        cv2.putText(image, f"(X, Y): {center_x, center_y} in", (10, 160), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
     cv2.imshow("Detected Object", image)
 
@@ -175,7 +205,10 @@ while True:
         else:
             print(ball_data[0])
             print(ball_data[1])
-            print(getZGap(ball_data[0], ball_data[1]))
+            xygap = getXandYGap(ball_data[0], ball_data[1])
+            print("\n\nX Gap: ", xygap[0])
+            print("Y Gap: ", xygap[1])
+            print("Z Gap: ", getZGap(ball_data[0], ball_data[1]))
 
     if key == ord('q'):
         break
