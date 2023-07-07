@@ -100,7 +100,7 @@ def getXandYGap(ball1, ball2):
         smallersideangle1 = abs(ball2.hangle)
         longerside = ball1.horizontal_distance
         longersideangle1 = abs(ball1.hangle)
-    inner_angle = abs(ball1.hangle) + abs(ball2.hangle)
+    inner_angle = abs(ball1.hangle - ball2.hangle)
     thirdside = lawOfCosines3rdSide(smallerside, longerside, inner_angle)
     smallersideangle2 = lawOfCosinesAngle(smallerside, thirdside, longerside)
     longersideangle2 = lawOfCosinesAngle(longerside, thirdside, smallerside)
